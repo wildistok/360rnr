@@ -116,26 +116,31 @@ class PanoCoroutines {
 
         val f2b = ConvertRotation3D_F32.eulerToMatrix(EulerType.ZYX, GrlConstants.F_PI, 0f, 0f, null)
 
-        //TODO FIRST THREAD
-        // Lens 1
-        val model0 = CalibrationIO.load<CameraUniversalOmni>(File(fisheyePath, "front.yaml"))
-        val distort0 = LensDistortionUniversalOmni(model0)
-        val mask0 = createMask(model0, distort0, UtilAngle.radian(182f).toDouble()) // camera has a known FOV of 185 degrees
-        val frontToBack = Se3_F32()
-        CommonOps_FDRM.mult(f2b, adjR, frontToBack.R)
-        alg.addCamera(frontToBack, distort0, mask0)
-        //END FIRST THREAD
+        runBlocking {
+            //TODO FIRST THREAD
+            // Lens 1
+            async {
+                val model0 = CalibrationIO.load<CameraUniversalOmni>(File(fisheyePath, "front.yaml"))
+                val distort0 = LensDistortionUniversalOmni(model0)
+                val mask0 = createMask(model0, distort0, UtilAngle.radian(182f).toDouble()) // camera has a known FOV of 185 degrees
+                val frontToBack = Se3_F32()
+                CommonOps_FDRM.mult(f2b, adjR, frontToBack.R)
+                alg.addCamera(frontToBack, distort0, mask0)
+                //END FIRST THREAD
+            }
 
-        //TODO SECOND THREAD
-        //Lens 2
-        val model1 = CalibrationIO.load<CameraUniversalOmni>(File(fisheyePath, "back.yaml"))
-        val distort1 = LensDistortionUniversalOmni(model1)
-        val mask1 = createMask(model1, distort1, UtilAngle.radian(182f).toDouble()) // the edges are likely to be noisy,
-        val frontToFront = Se3_F32()
-        frontToFront.rotation = adjR
-        alg.addCamera(frontToFront, distort1, mask1)
-        //END SECOND THREAD
-
+            //TODO SECOND THREAD
+            //Lens 2
+            async {
+                val model1 = CalibrationIO.load<CameraUniversalOmni>(File(fisheyePath, "back.yaml"))
+                val distort1 = LensDistortionUniversalOmni(model1)
+                val mask1 = createMask(model1, distort1, UtilAngle.radian(182f).toDouble()) // the edges are likely to be noisy,
+                val frontToFront = Se3_F32()
+                frontToFront.rotation = adjR
+                alg.addCamera(frontToFront, distort1, mask1)
+                //END SECOND THREAD
+            }
+        }
         val images = ArrayList<Planar<GrayF32>>()
 
         // add the camera and specify which pixels are valid.  These functions precompute the entire transform
